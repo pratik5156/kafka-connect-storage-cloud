@@ -25,9 +25,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.After;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -49,6 +47,8 @@ import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 import io.confluent.connect.avro.AvroDataConfig;
 
+import static io.confluent.connect.s3.S3SinkConnectorConfig.HEADERS_FORMAT_CLASS_CONFIG;
+import static io.confluent.connect.s3.S3SinkConnectorConfig.KEYS_FORMAT_CLASS_CONFIG;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -57,9 +57,6 @@ import static org.junit.Assert.assertFalse;
 public class S3SinkConnectorConfigTest extends S3SinkConnectorTestBase {
 
   protected Map<String, String> localProps = new HashMap<>();
-
-  @Rule
-  public ExpectedException thrown = ExpectedException.none();
 
   @Before
   @Override
@@ -268,11 +265,8 @@ public class S3SinkConnectorConfigTest extends S3SinkConnectorTestBase {
     assertEquals(false, clientConfig.isUseExpectContinue());
   }
 
-  @Test
+  @Test(expected = ConfigException.class)
   public void testConfigurableCredentialProviderMissingConfigs() {
-
-    thrown.expect(ConfigException.class);
-    thrown.expectMessage("are mandatory configuration properties");
 
     String configPrefix = S3SinkConnectorConfig.CREDENTIALS_PROVIDER_CONFIG_PREFIX;
     properties.put(
@@ -285,13 +279,16 @@ public class S3SinkConnectorConfigTest extends S3SinkConnectorTestBase {
     );
 
     connectorConfig = new S3SinkConnectorConfig(properties);
-    connectorConfig.getCredentialsProvider();
+    try {
+      connectorConfig.getCredentialsProvider();
+    } catch (ConfigException ex) {
+      assertTrue(ex.getMessage().contains("are mandatory configuration properties"));
+      throw ex;
+    }
   }
 
-  @Test
+  @Test(expected = ConfigException.class)
   public void testConfigurableAwsAssumeRoleCredentialsProviderMissingConfigs() {
-    thrown.expect(ConfigException.class);
-    thrown.expectMessage("Missing required configuration");
 
     properties.put(
         S3SinkConnectorConfig.CREDENTIALS_PROVIDER_CLASS_CONFIG,
@@ -314,8 +311,12 @@ public class S3SinkConnectorConfigTest extends S3SinkConnectorTestBase {
 
     AwsAssumeRoleCredentialsProvider credentialsProvider =
         (AwsAssumeRoleCredentialsProvider) connectorConfig.getCredentialsProvider();
-
-    credentialsProvider.configure(properties);
+    try {
+      credentialsProvider.configure(properties);
+    } catch (ConfigException ex) {
+      ex.getMessage().contains("Missing required configuration");
+      throw ex;
+    }
   }
 
   @Test
@@ -493,6 +494,82 @@ public class S3SinkConnectorConfigTest extends S3SinkConnectorTestBase {
     } catch (ConfigException e) {
       assertEquals(expectedError, e.getMessage());
     }
+  }
+
+  @Test
+  public void testKeyStorageDefaultFalse() {
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertFalse(connectorConfig.getBoolean(S3SinkConnectorConfig.STORE_KAFKA_KEYS_CONFIG));
+  }
+
+  @Test
+  public void testKeyStorageSupported() {
+    properties.put(S3SinkConnectorConfig.STORE_KAFKA_KEYS_CONFIG, "true");
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertTrue(connectorConfig.getBoolean(S3SinkConnectorConfig.STORE_KAFKA_KEYS_CONFIG));
+  }
+
+  @Test
+  public void testKeyFormatClassDefault() {
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertEquals(AvroFormat.class, connectorConfig.getClass(KEYS_FORMAT_CLASS_CONFIG));
+  }
+
+  @Test
+  public void testKeyFormatClassSupported() {
+    properties.put(KEYS_FORMAT_CLASS_CONFIG, AvroFormat.class.getCanonicalName());
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertEquals(AvroFormat.class, connectorConfig.getClass(KEYS_FORMAT_CLASS_CONFIG));
+
+    properties.put(KEYS_FORMAT_CLASS_CONFIG, JsonFormat.class.getCanonicalName());
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertEquals(JsonFormat.class, connectorConfig.getClass(KEYS_FORMAT_CLASS_CONFIG));
+
+    properties.put(KEYS_FORMAT_CLASS_CONFIG, ByteArrayFormat.class.getCanonicalName());
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertEquals(ByteArrayFormat.class, connectorConfig.getClass(KEYS_FORMAT_CLASS_CONFIG));
+
+    properties.put(KEYS_FORMAT_CLASS_CONFIG, ParquetFormat.class.getCanonicalName());
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertEquals(ParquetFormat.class, connectorConfig.getClass(KEYS_FORMAT_CLASS_CONFIG));
+  }
+
+  @Test
+  public void testHeaderStorageDefaultFalse() {
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertFalse(connectorConfig.getBoolean(S3SinkConnectorConfig.STORE_KAFKA_HEADERS_CONFIG));
+  }
+
+  @Test
+  public void testHeaderStorageSupported() {
+    properties.put(S3SinkConnectorConfig.STORE_KAFKA_HEADERS_CONFIG, "true");
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertTrue(connectorConfig.getBoolean(S3SinkConnectorConfig.STORE_KAFKA_HEADERS_CONFIG));
+  }
+
+  @Test
+  public void testHeaderFormatClassDefault() {
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertEquals(AvroFormat.class, connectorConfig.getClass(HEADERS_FORMAT_CLASS_CONFIG));
+  }
+
+  @Test
+  public void testHeaderFormatClassSupported() {
+    properties.put(HEADERS_FORMAT_CLASS_CONFIG, AvroFormat.class.getCanonicalName());
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertEquals(AvroFormat.class, connectorConfig.getClass(HEADERS_FORMAT_CLASS_CONFIG));
+
+    properties.put(HEADERS_FORMAT_CLASS_CONFIG, JsonFormat.class.getCanonicalName());
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertEquals(JsonFormat.class, connectorConfig.getClass(HEADERS_FORMAT_CLASS_CONFIG));
+
+    properties.put(HEADERS_FORMAT_CLASS_CONFIG, ByteArrayFormat.class.getCanonicalName());
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertEquals(ByteArrayFormat.class, connectorConfig.getClass(HEADERS_FORMAT_CLASS_CONFIG));
+
+    properties.put(HEADERS_FORMAT_CLASS_CONFIG, ParquetFormat.class.getCanonicalName());
+    connectorConfig = new S3SinkConnectorConfig(properties);
+    assertEquals(ParquetFormat.class, connectorConfig.getClass(HEADERS_FORMAT_CLASS_CONFIG));
   }
 }
 

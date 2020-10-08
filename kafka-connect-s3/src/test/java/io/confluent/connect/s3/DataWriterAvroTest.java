@@ -67,12 +67,11 @@ import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 import io.confluent.kafka.serializers.NonRecordContainer;
 
 import static io.confluent.connect.avro.AvroData.AVRO_TYPE_ENUM;
-import static io.confluent.connect.avro.AvroData.CONNECT_ENUM_DOC_PROP;
 import static org.apache.kafka.common.utils.Time.SYSTEM;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class DataWriterAvroTest extends TestWithMockedS3 {
@@ -108,7 +107,7 @@ public class DataWriterAvroTest extends TestWithMockedS3 {
     format = new AvroFormat(storage);
 
     s3.createBucket(S3_TEST_BUCKET_NAME);
-    assertTrue(s3.doesBucketExist(S3_TEST_BUCKET_NAME));
+    assertTrue(s3.doesBucketExistV2(S3_TEST_BUCKET_NAME));
 
     // Workaround to avoid AWS S3 client failing due to apparently incorrect S3Mock digest
     prevMd5Prop = System.getProperty(
@@ -127,7 +126,7 @@ public class DataWriterAvroTest extends TestWithMockedS3 {
       private final AtomicInteger retries = new AtomicInteger(0);
 
       @Override
-      public S3OutputStream create(String path, boolean overwrite) {
+      public S3OutputStream create(String path, boolean overwrite, Class<?> formatClass) {
         return new TopicPartitionWriterTest.S3OutputStreamFlaky(path, this.conf(), s3, retries);
       }
     };
@@ -137,7 +136,7 @@ public class DataWriterAvroTest extends TestWithMockedS3 {
     format = new AvroFormat(storage);
 
     s3.createBucket(S3_TEST_BUCKET_NAME);
-    assertTrue(s3.doesBucketExist(S3_TEST_BUCKET_NAME));
+    assertTrue(s3.doesBucketExistV2(S3_TEST_BUCKET_NAME));
   }
 
   @After
@@ -773,7 +772,6 @@ public class DataWriterAvroTest extends TestWithMockedS3 {
   public Schema createEnumSchema() {
     // Enums are just converted to strings, original enum is preserved in parameters
     SchemaBuilder builder = SchemaBuilder.string().name("TestEnum");
-    builder.parameter(CONNECT_ENUM_DOC_PROP, null);
     builder.parameter(AVRO_TYPE_ENUM, "TestEnum");
     for(String enumSymbol : new String[]{"foo", "bar", "baz"}) {
       builder.parameter(AVRO_TYPE_ENUM+"."+enumSymbol, enumSymbol);
